@@ -1,0 +1,68 @@
+# Name of the GitHub Actions workflow
+name: CI/CD for Dockerised Flask App
+
+# Trigger the workflow on push or pull request to the main branch
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Job to build and test the Flask app
+  build-and-test:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up the Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"  # Specify the Python version to use
+
+      # Step 3: Install Python dependencies from requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Step 4: Run tests using pytest
+      - name: Run tests
+        run: pytest
+
+  # Job to build and publish Docker image after tests pass
+  build-and-publish:
+    needs: build-and-test  # This job runs only if build-and-test succeeds
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    steps:
+      # Step 1: Checkout the repository again
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Docker Buildx for building Docker images
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Step 3: Log in to DockerHub using GitHub secrets
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Step 4: Build the Docker image and push it to DockerHub
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .  # Use current directory as Docker context
+          push: true  # Push the image to DockerHub
+          tags: ${{ secrets.DOCKER_USERNAME }}/flasktest-app:latest  # Tag for the Docker image
+
+      # Step 5: Confirm that the image was pushed
+      - name: Image digest
+        run: echo "Image pushed:${{ secrets.DOCKER_USERNAME }}/flasktest-app:latest"
